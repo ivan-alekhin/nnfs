@@ -1,4 +1,4 @@
-#include "nnfs_client_interface.h"
+#include "libnnfs_client_interface.h"
 #include <stdbool.h>
 #include <stdio.h>
 

@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include "libnnfs_msg_builder.h"
-#include "nnfs_client_interface.h"
+#include "libnnfs_client_interface.h"
 
 //right now it only hosts on a local machine
 //I will change it after adding regex support to write proper commands

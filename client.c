@@ -8,7 +8,7 @@
 //as usual a lot of things in code may change, because Im not too happy with how it looks overall(right now it works, its possible to play ping pong with it)
 //TODO: make a better menu
 
-const char* menu_text = "MENU:(use numbers right now, regex will be added later)\n1)(doesnt work right now)connect ip_adress port_number\n2)ping\n3)quit\n\n";
+const char* menu_text = "MENU:(use numbers right now, regex will be added later)\n1)(connects to localhost right now)connect ip_adress port_number\n2)ping\n3)quit\n\n";
 const char* IP = "127.0.0.1";
 #define MAX_USER_INPUT_LENGTH 16u
 

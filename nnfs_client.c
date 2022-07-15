@@ -8,7 +8,7 @@
 
 const char* menu_text = "MENU:(use numbers right now, regex will be added later)\n1)(doesnt work right now)connect ip_adress port_number\n2)ping\n3)quit\n\n";
 const char* IP = "0.0.0.0";
-const char* PORT = "24001";
+const char* PORT = "24002";
 
 //add proper debugging
 int main(int argc, char* argv[]){
@@ -25,13 +25,16 @@ int main(int argc, char* argv[]){
 
     bool infinite_loop = true;
     char choice = 0;
+    int result= 0;
 
     while(infinite_loop == true){
         printf("%s", menu_text);
         scanf(" %c", &choice);
         switch(choice){
             case '1':
-                nnfs_connect(&context, IP, PORT);
+                result = nnfs_connect(&context, IP, PORT);
+                if(result != 0)
+                    printf("couldnt connect to a remote server\n");
                 //later a proper connect call will be added, there is no auth sequence right now, so its not needed
                 break;
             case '2':

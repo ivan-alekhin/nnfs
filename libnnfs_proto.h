@@ -3,114 +3,41 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define MSG_HEADER_SIZE 16u
-#define BYTES_IN_UINT32 sizeof(uint32_t) 
-#define BITS_IN_BYTE 8u
-#define TYPE_CALL 0u
-#define TYPE_REPLY 1u
-#define NNFS_MAX_LENGTH 512u
-
-
 //ID used to send a reply to a specific call message by a server
 //type distinguishes call from a reply
 //op_code also serves as a status field in a reply message
-struct MSG{
+struct MSG_HEADER{
     uint32_t ID;
     uint32_t type;
     uint32_t op_code;
     uint32_t payload_len;
-    unsigned char* payload;
 };
+#define MSG_HEADER_SIZE sizeof(struct MSG_HEADER)
 
-
-//converts to XDR standard and expects at least for 4 bytes to be available in write_to parameter
-void convert_uint32_to_XDR(uint32_t integer, unsigned char* write_to){
-    for(int i = 0; i<BYTES_IN_UINT32; i++){
-        write_to[i] = (unsigned char) (integer >> (BYTES_IN_UINT32 * BITS_IN_BYTE - (i+1) * BITS_IN_BYTE));
-    }
-}
-
-//should work probably
-uint32_t convert_XDR_to_uint32(unsigned char* read_from){
-    uint32_t res = 0u;
-    for(int i = 0; i<BYTES_IN_UINT32; i++){
-        res = (res << BITS_IN_BYTE) + read_from[i];
-    }
-    return res;
-}
+struct MSG{
+    struct MSG_HEADER header;
+    unsigned char*payload;
+};
 
 //to make reading of the code easier
-//should be initialised on first call
-struct encoded_message{
-    unsigned char *mes;
+struct ENCODED_MESSAGE{
+    unsigned char* mes;
     uint32_t length;
 };
-
-
-//uniform way to destroy structs introduced in this lib
-void destroymsg(struct MSG message){
-    if(message.payload_len != 0){
-        free(message.payload);
-    }
-    message.payload_len = 0u;
-    message.payload = NULL;
-}
-
-void destroyem(struct encoded_message encmes){
-    if(encmes.mes != NULL)
-        free(encmes.mes);
-    encmes.mes = NULL;
-}
-
-//inits structures
-void init_encoded_message(struct encoded_message *encmes){
-    encmes->length = 0u;
-    encmes->mes = (unsigned char*) calloc(1, NNFS_MAX_LENGTH);
-}
-
-void init_MSG(struct MSG *message){
-    message->payload = NULL;
-    message->payload_len = 0u;
-}
+//uniform way to destroy and init structs introduced in this lib
+void destroy_msg(struct MSG*);
+void destroy_encmes(struct ENCODED_MESSAGE*);
+void init_encmes(struct ENCODED_MESSAGE*);
+void init_msg(struct MSG *);
 
 //converts from C struct message to the XDR format that can be send by a socket
-void encode(struct MSG toencode, struct encoded_message *encmes){
-    encmes->length = MSG_HEADER_SIZE + toencode.payload_len;
-    if(encmes->length > NNFS_MAX_LENGTH)
-        exit(1);
+void encode(const struct MSG*, struct ENCODED_MESSAGE *);
 
-    //probably temporary
-    convert_uint32_to_XDR(toencode.ID, encmes->mes);
-    convert_uint32_to_XDR(toencode.type, encmes->mes + BYTES_IN_UINT32);
-    convert_uint32_to_XDR(toencode.op_code, encmes->mes + 2* BYTES_IN_UINT32);
-    convert_uint32_to_XDR(toencode.payload_len, encmes->mes + 3* BYTES_IN_UINT32);
+//decodes from XDR format to C struct message
+//should be called one after another:
+//header is fixed size and contains the field that tells decode_payload how much data to expect
+//also allows to recv know how much data there is in payload to receive
+void decode_header(const struct ENCODED_MESSAGE *, struct MSG*);
 
-    unsigned char* src_ptr = toencode.payload;
-    unsigned char* dest_ptr = encmes->mes + 4*BYTES_IN_UINT32;
-    for(int i = 0; i < toencode.payload_len; i++, src_ptr++,dest_ptr++){
-        *dest_ptr = *src_ptr;
-    }
-}
-
-//decodes encoded message
-void decode(struct encoded_message encmes, struct MSG *retval){
-    retval->ID = convert_XDR_to_uint32(encmes.mes);
-    retval->type = convert_XDR_to_uint32(encmes.mes + BYTES_IN_UINT32);
-    retval->op_code = convert_XDR_to_uint32(encmes.mes + 2* BYTES_IN_UINT32);
-    retval->payload_len = convert_XDR_to_uint32(encmes.mes + 3*BYTES_IN_UINT32);
-    if(retval->payload_len + MSG_HEADER_SIZE > NNFS_MAX_LENGTH)
-        exit(1);
-    
-    if(retval->payload != NULL)
-        destroymsg(*retval);
-    if(retval->payload_len == 0) 
-        retval->payload = NULL;
-    else{
-        unsigned char* src_ptr = encmes.mes + 4*BYTES_IN_UINT32;
-        retval->payload = (unsigned char*) calloc(retval->payload_len, 1);
-        unsigned char *dest_ptr = retval->payload;
-        for(int i = 0; i < retval->payload_len; i++, dest_ptr++, src_ptr++){
-            *dest_ptr = *src_ptr;
-        }
-    }
-}
+//expects that at the start of the encoded_message is the encoded payload
+void decode_payload(const struct ENCODED_MESSAGE *, struct MSG*);

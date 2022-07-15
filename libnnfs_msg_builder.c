@@ -7,7 +7,6 @@
 
 //defines a basic template call
 void inner_build_template_call(struct MSG *message, uint32_t ID){
-    destroy_msg(message);
     message->header.type = TYPE_CALL;
     message->header.ID = ID;
     message->header.op_code = NULL_OP_CODE;
@@ -17,7 +16,6 @@ void inner_build_template_call(struct MSG *message, uint32_t ID){
 
 //defines a basic template reply
 void inner_build_template_reply(struct MSG *message, uint32_t ID){
-    destroy_msg(message);
     message->header.type = TYPE_REPLY;
     message->header.ID = ID;
     message->header.op_code = NULL_OP_CODE;

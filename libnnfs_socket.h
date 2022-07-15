@@ -9,7 +9,7 @@
 #include <unistd.h>
 
 
-#define PORT "24013"
+#define PORT "24001"
 //client interface to use in code
 
 
@@ -40,7 +40,7 @@ int nnfs_connect(struct nnfs_context *client, const char *IP, const char*port){
 //send a message to a remote server 
 //returns how many bytes are sent
 int nnfs_send(struct nnfs_context *client, struct encoded_message *message){
-    return send(client->socket,(void*) message->mes, NNFS_MAX_LENGTH, 0);
+    return send(client->socket,(void*) message->mes, message->length, 0);
 }
 
 //receive a message from a remote server

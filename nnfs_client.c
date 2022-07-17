@@ -5,10 +5,11 @@
 #include "libnnfs_msg_builder.h"
 #include "libnnfs_socket.h"
 #include "nnfs_message_codes.h"
+#include "libnnfs_primitive_matcher.h"
 
-const char* menu_text = "MENU:(use numbers right now, regex will be added later)\n1)(doesnt work right now)connect ip_adress port_number\n2)ping\n3)quit\n\n";
-const char* IP = "0.0.0.0";
-const char* PORT = "24002";
+const char* menu_text = "MENU:write whole command, p.e. connect 0.0.0.0:24004\n1)connect ip_adress:port_number\n2)ping\n3)quit\n\n";
+#define COMMAND_MAX_LENGTH 64u
+
 
 //add proper debugging
 int main(int argc, char* argv[]){
@@ -23,28 +24,39 @@ int main(int argc, char* argv[]){
     struct MSG message;
     init_msg(&message);
 
+    char * command = (char *) calloc(1, COMMAND_MAX_LENGTH + 1);
     bool infinite_loop = true;
-    char choice = 0;
+    uint32_t command_op_code = NULL_OP_CODE;
     int result= 0;
 
+    //better commands later without the menu
     while(infinite_loop == true){
         printf("%s", menu_text);
-        scanf(" %c", &choice);
-        switch(choice){
-            case '1':
-                result = nnfs_connect(&context, IP, PORT);
+        fgets(command, COMMAND_MAX_LENGTH, stdin);
+        command_op_code = type_of_command(command);
+        char *ip = NULL, *port = NULL;
+        
+        switch(command_op_code){
+            case OP_CODE_CONNECT_CALL:
+                //printf("%s\n", command);
+                match_IPaddr(command, &ip);
+                match_PORTnumber(command, &port);
+                printf("connecting to %s at %s\n", port, ip);
+                result = nnfs_connect(&context, ip, port);
                 if(result != 0)
                     printf("couldnt connect to a remote server\n");
                 //later a proper connect call will be added, there is no auth sequence right now, so its not needed
                 break;
-            case '2':
+
+            case OP_CODE_PING:
                 build_ping_call(&message);
                 nnfs_send(&context, &message);
                 nnfs_receive(&context, &message);
                 if(message.header.op_code == STATUS_PONG)
                     printf("PONG!\n");
                 break;
-            case '3':
+
+            case OP_CODE_CLOSE_CONNECTION:
                 build_quit_call(&message, ID);
                 nnfs_send(&context, &message);
                 nnfs_receive(&context, &message);
@@ -53,6 +65,10 @@ int main(int argc, char* argv[]){
                     nnfs_close(&context);
                     return 0;
                 }
+                break;
+
+            default:
+                printf("Invalid command\n");
                 break;
         }
     }

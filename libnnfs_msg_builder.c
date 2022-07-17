@@ -61,7 +61,7 @@ void build_ping_call(struct MSG *retval){
 }
 
 
-void build_pong_call(struct MSG *retval){
+void build_pong_reply(struct MSG *retval){
     destroy_msg(retval);
     inner_build_template_reply(retval, 0);
     retval->header.op_code = STATUS_PONG;

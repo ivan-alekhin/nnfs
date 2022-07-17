@@ -18,8 +18,6 @@ const char * quit_format = "quit";
 const char * bind_format = "bind";
 const char * listen_and_accept_format = "start";
 
-
-
 void match_IPaddr(const char* str, char ** dest){
     if(*dest != NULL) free(*dest);
     regex_t ip;

@@ -9,8 +9,14 @@ client: libnnfs_proto.o libnnfs_msg_builder.o libnnfs_socket.o nnfs_client.o lib
 server:	libnnfs_proto.o libnnfs_msg_builder.o libnnfs_socket.o nnfs_client.o libnnfs_primitive_matcher.o libnnfs_queue.o nnfs_server.o
 	$(CC) -pthread nnfs_server.o libnnfs_proto.o libnnfs_msg_builder.o libnnfs_socket.o libnnfs_primitive_matcher.o libnnfs_queue.o -o nnfs_server
 
+test: utest_nnfs.o libnnfs_proto.o libnnfs_primitive_matcher.o
+	$(CC) utest_nnfs.o libnnfs_proto.o libnnfs_primitive_matcher.o -o utest
+
+utest_nnfs.o: utest_nnfs.c
+	$(CC) $(FLAGS) utest_nnfs.c
+
 nnfs_server.o: nnfs_server.c
-	$(CC) $(FLAGS) 	nnfs_server.c
+	$(CC) $(FLAGS) -pthread nnfs_server.c
 
 nnfs_client.o: nnfs_client.c
 	$(CC) $(FLAGS) nnfs_client.c

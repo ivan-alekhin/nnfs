@@ -19,7 +19,7 @@ int nnfs_bind(struct nnfs_context *, const char *ip, const char *port);
 int nnfs_listen(struct nnfs_context *, uint32_t max_clients);
 
 //accepts connection returning client information
-struct nnfs_context nnfs_accept(struct nnfs_context *);
+void nnfs_accept(struct nnfs_context *server, struct nnfs_context *client);
 
 //send a message to a remote server 
 //returns how many bytes are sent
@@ -35,5 +35,5 @@ int nnfs_shutdown(struct nnfs_context *);
 
 //closes a nnfs_socket
 //may not free the socket adress for about 4 minutes, refer to the socket documentation
-int nnfs_close(struct nnfs_context* );
+int nnfs_close(struct nnfs_context *);
 

@@ -1,7 +1,8 @@
 #include "libnnfs_msg_builder.h"
-#include "nnfs_message_codes.h"
+#include "nnfs_constants.h"
 #include "libnnfs_proto.h"
 
+#include <stdio.h>
 #include <string.h>
 #include <stddef.h>
 
@@ -44,7 +45,11 @@ void build_fail_reply(struct MSG *retval, uint32_t ID, uint32_t reason, uint32_t
     if(length == 0)
         retval->payload = NULL;
     else{
-        retval->payload = (unsigned char*) calloc(length, 1);
+        retval->payload = calloc(length, 1);
+        if(retval->payload == NULL){
+            printf("ERROR: calloc returned NULL in build_fail_reply\n");
+            exit(1);
+        }
         strncpy((char*)retval->payload, (char *)payload, length);
     }
 }

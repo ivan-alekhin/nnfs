@@ -22,4 +22,4 @@ void build_success_reply(struct MSG *, uint32_t);
 void build_pong_reply(struct MSG *);
 
 //is used to respond to a ping call
-void build_fail_reply(struct MSG *, uint32_t, uint32_t, uint32_t, unsigned char *);
+void build_fail_reply(struct MSG *, uint32_t ID, uint32_t reason_op_code, uint32_t payload_len, unsigned char *payload);

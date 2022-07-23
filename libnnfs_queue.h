@@ -7,11 +7,11 @@
 
 struct queue_node{
     struct nnfs_context context;
-    struct queue_node* next; 
+    struct queue_node *next; 
 };
 
 void init_queue(struct queue_node **head);
 bool queue_is_empty(struct queue_node **head);
-struct nnfs_context queue_pop(struct queue_node ** head);
+void queue_pop(struct queue_node ** head, struct nnfs_context *ptr);
 void queue_push(struct queue_node **head, struct nnfs_context *context);
 void queue_clear(struct queue_node **head);

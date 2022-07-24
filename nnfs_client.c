@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include "libnnfs_proto.h"
 #include "libnnfs_msg_builder.h"
@@ -7,12 +8,34 @@
 #include "nnfs_constants.h"
 #include "libnnfs_primitive_matcher.h"
 
-const char* menu_text = "MENU:write one whole command, p.e. connect 0.0.0.0:24004\n1)connect ip_adress:port_number\n2)ping\n3)quit\n\n";
+const char* menu_text = "MENU:write one whole command, p.e. connect 0.0.0.0:24004\n1)connect ip_adress:port_number\n2)ping\n3)quit\n4)ls\n5)cd\n\n";
 #define COMMAND_MAX_LENGTH 64u
+#define CURDIR_LENGTH 512u
+#define BUFFER_LENGTH 512u
 
+//zeroes out the string
+void zeromem(char * command, uint32_t length){
+    for(uint32_t i = 0; i < length; i++){
+        command[i] = '\0';
+    }
+}
+
+//prints payload(used to not copy payload out of the message, because it doesnt have a trailing '\0'
+//and printing it as a string will result in undefined behaviour[likely a segfault])
+void print_payload(const char * payload, const uint32_t payload_len){
+    for(uint32_t i =0; i < payload_len; i++){
+        printf("%c", payload[i]);
+    }
+}
 
 //add proper debugging
 int main(int argc, char *argv[]){
+
+    // char curdir[CURDIR_LENGTH];
+    // zeromem(curdir, CURDIR_LENGTH);
+
+    char buffer[BUFFER_LENGTH + 1];
+    zeromem(buffer, BUFFER_LENGTH + 1);
 
     uint32_t ID = STARTING_ID;
     struct nnfs_context context;
@@ -82,7 +105,7 @@ int main(int argc, char *argv[]){
                 break;
 
             case OP_CODE_CLOSE_CONNECTION:
-                build_quit_call(&message, ID);
+                build_quit_call(&message, ID++);
                 result = nnfs_send(&context, &message);
                 if(result == 0)
                     printf("ERROR: couldnt send a message\n");
@@ -102,7 +125,32 @@ int main(int argc, char *argv[]){
                 else
                     printf("ERROR: something went wrong in the quit call\n");
                 break;
+                
+            case OP_CODE_LIST_DIRECTORY:
+                build_ls_call(&message, ID++);
+                nnfs_send(&context, &message);
+                message.header.is_last = 1;
+                while(message.header.is_last == 1){
+                    printf("STATUS: waiting to accept a listing\n");
+                    nnfs_receive(&context, &message);
+                    print_payload(message.payload, message.header.payload_len);
+                }
+                break;
 
+            case OP_CODE_CHANGE_DIRECTORY:
+                printf("Enter directory to go to:\n(use of . is prohibited and .. should only be in the start, ~ is considered home directory)\n");
+                fgets(buffer, BUFFER_LENGTH, stdin);
+                buffer[strlen(buffer) - 1] = 0;
+                build_chdir_call(&message, ID++, buffer);
+                nnfs_send(&context, &message);
+                nnfs_receive(&context, &message);
+                if(message.header.op_code == STATUS_FAIL_GARBAGE_ARGS){
+                    printf("ERROR: invalid directory. It is %s\n", buffer);
+                }
+                if(message.header.op_code == STATUS_SUCCESS){
+                    printf("SUCCESS: changed directory\n");
+                }
+                break;
             default:
                 printf("ERROR: Invalid user command\n");
                 break;

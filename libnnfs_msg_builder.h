@@ -22,4 +22,10 @@ void build_success_reply(struct MSG *, uint32_t);
 void build_pong_reply(struct MSG *);
 
 //is used to respond to a ping call
-void build_fail_reply(struct MSG *, uint32_t ID, uint32_t reason_op_code, uint32_t payload_len, unsigned char *payload);
+void build_template_reply(struct MSG *, uint32_t ID, uint32_t reason_op_code, uint32_t payload_len, unsigned char *payload, char last_message, char seq_number);
+
+//list directory call
+void build_ls_call(struct MSG *, uint32_t ID);
+
+//change directory call
+void build_chdir_call(struct MSG *, uint32_t ID, const char * path);

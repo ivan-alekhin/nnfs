@@ -11,6 +11,8 @@ struct MSG_HEADER{
     uint32_t type;
     uint32_t op_code;
     uint32_t payload_len;
+    char is_last;
+    unsigned char number_in_sequence;
 };
 #define MSG_HEADER_SIZE sizeof(struct MSG_HEADER)
 //maximum length of the message

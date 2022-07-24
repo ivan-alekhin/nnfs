@@ -19,6 +19,9 @@ const char *help_format = "help";
 const char *quit_format = "quit";
 const char *bind_format = "bind";
 const char *listen_and_accept_format = "start";
+const char *set_directory_format = "setdir";
+const char *list_directory_format = "ls";
+const char *change_directory_format = "cd";
 
 void match_IPaddr(const char *str, char **dest){
     free(*dest);
@@ -78,8 +81,11 @@ int type_of_command(const char *str){
     if(strstr(str, connect_format) != NULL)     return OP_CODE_CONNECT_CALL;
     if(strstr(str, ping_format) != NULL)    return OP_CODE_PING;
     if(strstr(str, quit_format) != NULL)    return OP_CODE_CLOSE_CONNECTION;
+    if(strstr(str, list_directory_format) != NULL)      return OP_CODE_LIST_DIRECTORY;
+    if(strstr(str,change_directory_format) != NULL)     return OP_CODE_CHANGE_DIRECTORY;
     if(strstr(str, bind_format) != NULL)    return SERVER_BIND;
     if(strstr(str, listen_and_accept_format) != NULL)   return SERVER_LISTEN_AND_ACCEPT;
+    if(strstr(str, set_directory_format) != NULL)   return SERVER_SET_DIRECTORY;    
     return NULL_OP_CODE;
 }
 

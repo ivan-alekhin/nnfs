@@ -13,12 +13,12 @@
 #define OP_CODE_CONNECT_CALL 257u
 #define OP_CODE_CLOSE_CONNECTION 258u
 #define OP_CODE_PING 259u
+#define OP_CODE_LIST_DIRECTORY 260u
+#define OP_CODE_CHANGE_DIRECTORY 261u
 
 //not implemented op_codes:
-#define OP_CODE_LIST_DIRECTORY 259u
-#define OP_CODE_CHANGE_DIRECTORY 260u
-#define OP_CODE_WRITE_FROM_LOCAL 261u
-#define OP_CODE_READ_FROM_REMOTE 262u
+#define OP_CODE_WRITE_FROM_LOCAL 262u
+#define OP_CODE_READ_FROM_REMOTE 263u
 
 
 //op_code in TYPE_REPLY represents status
@@ -28,6 +28,8 @@
 #define STATUS_FAIL 2u
 #define STATUS_FAIL_NO_SUCH_DIRECTORY 3u
 #define STATUS_FAIL_BAD_OP_CODE 4u
+#define STATUS_FAIL_GARBAGE_ARGS 5u
+#define STATUS_FAIL_UNSAFE_PAYLOAD_LENGTH 6u
 
 
 //ping pong can be sent by both the client and the server so correctly managing IDs that allows server to respond to a specific 
@@ -40,3 +42,4 @@
 //commands that do not match op_codes
 #define SERVER_BIND 513u
 #define SERVER_LISTEN_AND_ACCEPT 514u
+#define SERVER_SET_DIRECTORY 515u

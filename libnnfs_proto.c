@@ -59,6 +59,8 @@ void decode_header(const struct ENCODED_MESSAGE *encmes, struct MSG *message){
     message->header.type = convert_XDR_to_uint32(encmes->mes + BYTES_IN_UINT32);
     message->header.op_code = convert_XDR_to_uint32(encmes->mes + 2* BYTES_IN_UINT32);
     message->header.payload_len = convert_XDR_to_uint32(encmes->mes + 3*BYTES_IN_UINT32);
+    message->header.is_last = encmes->mes[4 * BYTES_IN_UINT32];
+    message->header.number_in_sequence = encmes->mes[4 * BYTES_IN_UINT32 + 1];
     printf("SUCCESS: header decoded\n");
 }
 
@@ -67,6 +69,8 @@ void encode_header(const struct MSG *message, struct ENCODED_MESSAGE *encmes){
     convert_uint32_to_XDR(message->header.type, encmes->mes + BYTES_IN_UINT32);
     convert_uint32_to_XDR(message->header.op_code, encmes->mes + 2* BYTES_IN_UINT32);
     convert_uint32_to_XDR(message->header.payload_len, encmes->mes + 3* BYTES_IN_UINT32);
+    encmes->mes[4 * BYTES_IN_UINT32] = message->header.is_last;
+    encmes->mes[4 * BYTES_IN_UINT32 + 1] = message->header.number_in_sequence;
 }
 
 void encode(const struct MSG *message, struct ENCODED_MESSAGE *encmes){

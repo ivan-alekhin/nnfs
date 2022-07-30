@@ -29,3 +29,8 @@ void build_ls_call(struct MSG *, uint32_t ID);
 
 //change directory call
 void build_chdir_call(struct MSG *, uint32_t ID, const char * path);
+
+//read from file
+void build_read_file_call(struct MSG *message, uint32_t ID, const char *filename, uint32_t number_of_characters, uint32_t offset, uint32_t read_mode);
+
+void build_write_file_call(struct MSG *message, uint32_t ID, const char *filename, const char *to_write);

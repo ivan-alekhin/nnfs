@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 //I know that they look ridiculous, for some reason those scary // are needed before any regex special character
 const char *IPregex = "\\([0-9]\\{1,3\\}\\.\\)\\{3\\}[0-9]\\{1,3\\}";
@@ -22,6 +23,8 @@ const char *listen_and_accept_format = "start";
 const char *set_directory_format = "setdir";
 const char *list_directory_format = "ls";
 const char *change_directory_format = "cd";
+const char *read_file_format = "read";
+const char *write_to_file_format = "write";
 
 void match_IPaddr(const char *str, char **dest){
     free(*dest);
@@ -83,9 +86,12 @@ int type_of_command(const char *str){
     if(strstr(str, quit_format) != NULL)    return OP_CODE_CLOSE_CONNECTION;
     if(strstr(str, list_directory_format) != NULL)      return OP_CODE_LIST_DIRECTORY;
     if(strstr(str,change_directory_format) != NULL)     return OP_CODE_CHANGE_DIRECTORY;
+    if(strstr(str,read_file_format) != NULL)        return OP_CODE_READ_FROM_REMOTE;  
+    if(strstr(str,write_to_file_format) != NULL)    return OP_CODE_WRITE_FROM_LOCAL;
+
     if(strstr(str, bind_format) != NULL)    return SERVER_BIND;
     if(strstr(str, listen_and_accept_format) != NULL)   return SERVER_LISTEN_AND_ACCEPT;
-    if(strstr(str, set_directory_format) != NULL)   return SERVER_SET_DIRECTORY;    
+    if(strstr(str, set_directory_format) != NULL)   return SERVER_SET_DIRECTORY;  
     return NULL_OP_CODE;
 }
 
@@ -115,4 +121,110 @@ int match_client_number(const char *str){
         printf("ERROR: regexec in match_client_number failed\n");
         return -1;
     }
+}
+
+
+bool is_valid_read_call(const char *payload){
+    int counter = 0;
+    const char *pos = payload;
+    while(pos != NULL){
+        pos = strchr(pos + 1, '-');
+        counter++;
+    }
+    if(counter < 3)
+        return false;
+    counter = 0;
+    pos = payload;
+        while(pos != NULL){
+        pos = strchr(pos + 1, '\"');
+        counter++;
+    }
+    if(counter < 2)
+        return false;
+    return true;
+}
+
+void substr(char **dest, const char *src_from, const char *src_up_to){
+    free(*dest);
+    int length = src_up_to - src_from + 1;
+    *dest = calloc(1, length);
+    strncpy(*dest, src_from, length - 1);
+}
+
+int get_read_info_from_call(const char *payload, struct read_info *info){
+    free(info->file_path);
+    info->file_path = NULL;
+    if(!is_valid_read_call(payload)){//return garbage args
+        printf("ERROR:garbage args in read-info \n");
+        return STATUS_FAIL_GARBAGE_ARGS;
+    }
+
+    const char *strt = payload, *end = payload;
+    //I should probably make a loop
+    end = strchr(strt, '-');
+    char *dest = NULL;
+    substr(&dest, strt, end);
+    info->read_mode = atoi(dest);
+
+    strt = end + 1;
+    end = strchr(strt, '-');
+    substr(&dest, strt, end);
+    info->offset = atoi(dest);
+
+    strt = end + 1;
+    end = strchr(strt, '-');
+    substr(&dest, strt, end);
+    info->number_of_characters = atoi(dest);
+
+    strt = strchr(payload, '\"');
+    end  = strchr(strt + 1, '\"');
+    substr(&dest, strt + 1, end);
+    info->file_path = dest;
+    dest = NULL;
+    
+    return 0;
+}
+
+bool is_valid_write_call(const char *payload){
+    int counter = 0;
+    const char *pos = payload;
+    while(pos != NULL){
+        pos = strchr(pos + 1, '-');
+        counter++;
+    }
+    if(counter < 1)
+        return false;
+    counter = 0;
+    pos = payload;
+        while(pos != NULL){
+        pos = strchr(pos + 1, '\"');
+        counter++;
+    }
+    if(counter < 2)
+        return false;
+    return true;
+}
+
+int get_write_info_from_call(const char *payload, const uint32_t length, struct write_info *info){
+    free(info->file_path);
+    info->file_path = NULL;
+    info->buffer = NULL;
+    if(!is_valid_write_call(payload)){//return garbage args
+        printf("ERROR:garbage args in read-info \n");
+        return -1;
+    }
+    const char *strt = payload, *end = payload;
+    char *dest = NULL;
+
+    strt = strchr(payload, '\"');
+    end  = strchr(strt + 1, '\"');
+    substr(&dest, strt + 1, end);
+    info->file_path = dest;
+    dest = NULL;
+
+    strt = strchr(end + 1, '-');
+    end  = payload + length;
+    substr(&dest, strt + 1, end);
+    info->buffer = dest;
+    dest = NULL;
 }

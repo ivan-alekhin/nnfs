@@ -19,6 +19,8 @@
 //not implemented op_codes:
 #define OP_CODE_WRITE_FROM_LOCAL 262u
 #define OP_CODE_READ_FROM_REMOTE 263u
+#define READ_MODE_TEXT 0
+#define READ_MODE_BINARY 1
 
 
 //op_code in TYPE_REPLY represents status
@@ -30,6 +32,7 @@
 #define STATUS_FAIL_BAD_OP_CODE 4u
 #define STATUS_FAIL_GARBAGE_ARGS 5u
 #define STATUS_FAIL_UNSAFE_PAYLOAD_LENGTH 6u
+#define STATUS_FAIL_NO_SUCH_FILE 7u
 
 
 //ping pong can be sent by both the client and the server so correctly managing IDs that allows server to respond to a specific 
@@ -43,3 +46,11 @@
 #define SERVER_BIND 513u
 #define SERVER_LISTEN_AND_ACCEPT 514u
 #define SERVER_SET_DIRECTORY 515u
+
+//first is read_mode, second is offset, third is number of characters, fourth is a filename
+#define READ_CALL_FORMAT "%d-%d-%d-\"%s\""
+//first is the file name, second is text to write
+#define WRITE_CALL_FORMAT "\"%s\"-%s"
+
+//read everything
+#define READ_EVERYTHING 0u

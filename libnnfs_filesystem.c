@@ -213,7 +213,7 @@ int find_last_dir(const char *beg_of_path, int number_of_slashes){
 }
 
 //gets rid of .. to optimise memory
-void build_whole_path(struct dir_descriptor *descr, const char *path, char **new_path){
+void build_whole_path(const struct dir_descriptor *descr, const char *path, char **new_path){
     if(is_safe_path(path, descr)){
 
         if(is_absolute_path(path)){
@@ -302,4 +302,101 @@ int change_directory(struct dir_descriptor *descr, const char *dir){
 
 void rewind_directory(struct dir_descriptor *dir){
     rewinddir(dir->directory);
+}
+
+bool is_safe_filename(const char *filename){
+    if(strchr(filename, '/') != NULL){
+        printf("ERROR: files can be opened only in the current directory\n");
+        return false;
+    }
+    return true;
+}
+
+int write_to_file_internal(const char *filename, const char *buffer){
+    FILE *file_descr = fopen(filename, "a");
+    if(file_descr == NULL){
+        printf("ERROR: failed to create a file : \"%s\"\n", filename);
+        return DIRECTORY_FAIL_TO_CREATE_FILE;
+    }
+
+    fprintf(file_descr, "%s\n", buffer);
+    fclose(file_descr);
+    return DIRECTORY_SUCCESS;
+}
+
+int write_to_file(const struct dir_descriptor *descr, const char *filename,  const char *buffer){
+    char *file_path = NULL;
+    if(!is_safe_filename(filename)){
+        printf("ERROR: file can only be opened in the current directory\n");
+        return DIRECTORY_FILE_OUTSIDE_OF_CURDIR;
+    }
+
+    if(descr->curdir_path != NULL)
+        file_path = calloc(1, strlen(filename) + strlen(hosting_directory) + strlen(descr->curdir_path) + 3);
+    else
+        file_path = calloc(1, strlen(filename) + strlen(hosting_directory) + 3);
+    strcat(file_path, hosting_directory);
+    strcat(file_path, "/");
+    if(descr->curdir_path != NULL){
+        strcat(file_path, descr->curdir_path);
+        strcat(file_path, "/");
+    }
+    strcat(file_path, filename);
+
+    int result = write_to_file_internal(file_path, buffer);
+    free(file_path);
+    return result;
+}
+
+int read_from_file_internal(const char *filename, char *buffer, uint32_t size_of_buffer, uint32_t offset){
+    FILE *file_descr = fopen(filename, "r");
+    if(file_descr == NULL){
+        printf("ERROR: failed to read from file: \"%s\"\n", filename);
+        return  DIRECTORY_FAILED_TO_OPEN;
+    }
+    //saving last character for NULL char
+    size_of_buffer--;
+    if(fseek(file_descr, offset, SEEK_SET) != 0){
+        printf("ERROR: couldnt get to the position %d\n", offset);
+        return DIRECTORY_FAILED_TO_GET_TO_OFFSET;
+    }
+
+    char ch = fgetc(file_descr);
+    uint32_t index = 0;
+    while(size_of_buffer > index && ch != EOF){
+        buffer[index] = ch;
+        index++;
+        ch = fgetc(file_descr);
+    }
+    buffer[index] = 0;
+    fclose(file_descr);
+
+    if(ch != EOF)
+        return offset + index;
+    else
+        return DIRECTORY_SUCCESS;
+}
+
+int read_from_file(const struct dir_descriptor *descr,const char *filename,  char *buffer, uint32_t size_of_buffer, uint32_t offset){
+    char *file_path = NULL;
+    if(!is_safe_filename(filename)){
+        printf("ERROR: file can only be opened in the current directory\n");
+        return DIRECTORY_FILE_OUTSIDE_OF_CURDIR;
+    }
+    if(descr->curdir_path != NULL)
+        file_path = calloc(1, strlen(filename) + strlen(hosting_directory) + strlen(descr->curdir_path) + 3);
+    else
+        file_path = calloc(1, strlen(filename) + strlen(hosting_directory) + 3);
+    strcat(file_path, hosting_directory);
+    strcat(file_path, "/");
+    if(descr->curdir_path != NULL){
+        strcat(file_path, descr->curdir_path);
+        strcat(file_path, "/");
+    }
+    strcat(file_path, filename);
+
+    int result = read_from_file_internal(file_path, buffer, size_of_buffer, offset);
+    free(file_path);
+
+    return result;
 }

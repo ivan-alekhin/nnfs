@@ -135,6 +135,107 @@ struct queue_node *head;
 //only one thread changes this variable and once, therefore no protection is needed
 bool shutting_down = false;
 
+pthread_mutex_t filesystem_mutex;
+
+
+//every call right now is only text
+void respond_to_read_file(struct dir_descriptor *descr, struct nnfs_context *client, struct MSG *message, int thread_number){
+    struct read_info rinfo;
+    rinfo.file_path = NULL;
+    printf("STATUS: making reading response\n");
+    if(message->header.payload_len < NNFS_MSG_MAX_LENGTH && message->header.payload_len != 0){
+        get_read_info_from_call(message->payload, &rinfo);
+        printf("STATUS: the file contains name \"%s\"\n", rinfo.file_path);
+        if(rinfo.read_mode != READ_MODE_TEXT){
+            printf("ERROR: client tried reading in binary.\n");
+            build_template_reply(message, message->header.ID, STATUS_FAIL_GARBAGE_ARGS,
+                                    0, NULL, 1, 0);
+            nnfs_send(client, message);
+            free(rinfo.file_path);
+            return;
+        }
+        printf("STATUS: client is reading file \"%s\"\n", rinfo.file_path);
+        int offset = rinfo.offset;
+        int sequence_number = 0;
+        bool continue_reading = true;
+        while(continue_reading){
+            printf("STATUS: starting reading\n");
+            build_success_reply(message, message->header.ID);
+            if(rinfo.number_of_characters > NNFS_MSG_MAX_LENGTH || rinfo.number_of_characters == 0){
+                printf("STATUS: entering if\n");
+                rinfo.number_of_characters-= NNFS_MSG_MAX_LENGTH;
+                message->header.payload_len = NNFS_MSG_MAX_LENGTH;
+                message->header.number_in_sequence = sequence_number++;
+                message->payload = calloc(1, message->header.payload_len);
+
+                offset = read_from_file(descr, rinfo.file_path, message->payload, message->header.payload_len, offset);
+                if(offset > 0)
+                    message->header.is_last = 0;
+                if(offset == 0)
+                    continue_reading = false;
+                if(offset < 0){
+                    printf("ERROR: couldnt read from file\n");
+                    build_template_reply(message, message->header.ID, STATUS_FAIL_GARBAGE_ARGS, 0, NULL, 1, sequence_number++);
+                    continue_reading = false;
+                }
+                printf("STATUS: sending a string = \"%s\"\n", message->payload);
+                nnfs_send(client, message);
+            }
+            else{
+                printf("STATUS: entering else\n");
+                message->header.is_last = 1;
+                message->header.payload_len = rinfo.number_of_characters;
+                message->payload = calloc(1, message->header.payload_len);
+                offset = read_from_file(descr, rinfo.file_path, message->payload, message->header.payload_len, offset);
+                message->header.number_in_sequence = sequence_number++;
+                if(offset < 0){
+                    printf("ERROR:couldnt read from file \"%s\"\n", rinfo.file_path);
+                    build_template_reply(message, message->header.ID, STATUS_FAIL_GARBAGE_ARGS, 0, NULL, 1, sequence_number++);
+                }
+                printf("STATUS: sending a string = \"%s\"", message->payload);
+                nnfs_send(client, message);
+                continue_reading = false;
+            }
+        }
+        free(rinfo.file_path);
+    }
+    else{
+        printf("ERROR: client sent unsafe message payload length. It is %d\n", message->header.payload_len);
+        build_template_reply(message, message->header.ID, STATUS_FAIL_UNSAFE_PAYLOAD_LENGTH,
+                                0, NULL, 1, 0);
+        nnfs_send(client, message); 
+    }
+}
+
+void respond_to_write_to_file(struct dir_descriptor *descr, struct nnfs_context *client, struct MSG *message, int thread_number){
+    struct write_info winfo;
+    winfo.buffer = NULL;
+    winfo.file_path = NULL;
+    printf("STATUS: making write response\n");
+    if(message->header.payload_len < NNFS_MSG_MAX_LENGTH && message->header.payload_len != 0){
+        get_write_info_from_call(message->payload, message->header.payload_len, &winfo);
+        int result = DIRECTORY_SUCCESS;
+        if(winfo.buffer != NULL)
+            result = write_to_file(descr, winfo.file_path, winfo.buffer);
+        if(result != DIRECTORY_SUCCESS){
+            printf("ERROR:couldnt write to file \"%s\"\n", winfo.file_path);
+            build_template_reply(message, message->header.ID, STATUS_FAIL_GARBAGE_ARGS, 0, NULL, 1, 0);
+        }
+        else{
+            printf("SUCCESS: wrote to a file\n");
+            build_success_reply(message, message->header.ID);
+        }
+        nnfs_send(client, message);
+        free(winfo.buffer);
+        free(winfo.file_path);
+    }
+    else{
+        printf("ERROR: client sent unsafe message payload length. It is %d\n", message->header.payload_len);
+        build_template_reply(message, message->header.ID, STATUS_FAIL_UNSAFE_PAYLOAD_LENGTH,
+                                0, NULL, 1, 0);
+        nnfs_send(client, message); 
+    }
+}
 //actual job the server will do
 //case <constant>
 //I believe that the <constant> name does the job at explaining what each case does
@@ -154,7 +255,7 @@ void workload(struct nnfs_context *client, int thread_number){
         nnfs_receive(client, &message);
         switch(message.header.op_code){
             case OP_CODE_PING:
-                printf("RESPONSE: thread %d is doing ping-pong message\n",thread_number);
+                printf("RESPONSE: thread %d is doing ping-pong message\n", thread_number);
                 build_pong_reply(&message);
                 nnfs_send(client, &message);
                 break;
@@ -182,7 +283,7 @@ void workload(struct nnfs_context *client, int thread_number){
                 while(dir_status == DIRECTORY_NOT_EVERYTHING_LISTED){
                     dir_status = slist_directory(&descr, buffer, NNFS_MSG_MAX_LENGTH);
                     build_template_reply(&message, message.header.ID, STATUS_SUCCESS, (int)(strchr(buffer, '\0')- buffer), 
-                                    buffer, dir_status, counter);
+                                    buffer, !dir_status, counter);
                     nnfs_send(client, &message);
                     counter++;
                 }
@@ -218,6 +319,16 @@ void workload(struct nnfs_context *client, int thread_number){
                                         0, NULL, 1, 0);
                 }
                 nnfs_send(client, &message);
+                break;
+
+            case OP_CODE_READ_FROM_REMOTE:
+                printf("STATUS: calling read respond function\n");
+                respond_to_read_file(&descr, client, &message,thread_number);
+                break;
+
+            case OP_CODE_WRITE_FROM_LOCAL:
+                printf("STATUS: calling write respond function\n");
+                respond_to_write_to_file(&descr, client, &message, thread_number);
                 break;
 
             default:
@@ -267,6 +378,8 @@ void server_start(struct nnfs_context *server, uint16_t client_number){
     struct nnfs_context client_buffer;
     sem_init(&job_status, 0, 0);
     pthread_mutex_init(&queue_mutex, NULL);
+    pthread_mutex_init(&filesystem_mutex, NULL);
+
     shutting_down = false;
 
     printf("STATUS: starting up...\n");
@@ -293,5 +406,6 @@ void server_start(struct nnfs_context *server, uint16_t client_number){
     //unreachable code right now
     sem_destroy(&job_status);
     pthread_mutex_destroy(&queue_mutex);
+    pthread_mutex_destroy(&filesystem_mutex);
     nnfs_close(server);
 }

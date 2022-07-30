@@ -8,7 +8,7 @@
 #include "nnfs_constants.h"
 #include "libnnfs_primitive_matcher.h"
 
-const char* menu_text = "MENU:write one whole command, p.e. connect 0.0.0.0:24004\n1)connect ip_adress:port_number\n2)ping\n3)quit\n4)ls\n5)cd\n\n";
+const char* menu_text = "MENU:write one whole command, p.e. connect 0.0.0.0:24004\n1)connect ip_adress:port_number\n2)ping\n3)quit\n4)ls\n5)cd\n6)read\n7)write\n\n";
 #define COMMAND_MAX_LENGTH 64u
 #define CURDIR_LENGTH 512u
 #define BUFFER_LENGTH 512u
@@ -35,7 +35,9 @@ int main(int argc, char *argv[]){
     // zeromem(curdir, CURDIR_LENGTH);
 
     char buffer[BUFFER_LENGTH + 1];
+    char filename[BUFFER_LENGTH + 1];
     zeromem(buffer, BUFFER_LENGTH + 1);
+    zeromem(filename, BUFFER_LENGTH + 1);
 
     uint32_t ID = STARTING_ID;
     struct nnfs_context context;
@@ -116,6 +118,7 @@ int main(int argc, char *argv[]){
 
                 if(message.header.op_code == STATUS_SUCCESS){
                     free(command);
+                    
                     printf("RESPONSE: Goodbye!\n");
                     result = nnfs_close(&context);
                     if(result != 0)
@@ -129,9 +132,9 @@ int main(int argc, char *argv[]){
             case OP_CODE_LIST_DIRECTORY:
                 build_ls_call(&message, ID++);
                 nnfs_send(&context, &message);
-                message.header.is_last = 1;
-                while(message.header.is_last == 1){
-                    printf("STATUS: waiting to accept a listing\n");
+                message.header.is_last = 0;
+                printf("STATUS: waiting to accept a listing\n");
+                while(message.header.is_last != 1){
                     nnfs_receive(&context, &message);
                     print_payload(message.payload, message.header.payload_len);
                 }
@@ -149,6 +152,47 @@ int main(int argc, char *argv[]){
                 }
                 if(message.header.op_code == STATUS_SUCCESS){
                     printf("SUCCESS: changed directory\n");
+                }
+                break;
+
+            case OP_CODE_READ_FROM_REMOTE:
+                printf("Enter filename to read from:\n");
+                fgets(filename, BUFFER_LENGTH, stdin);
+                filename[strlen(filename) - 1] = 0;
+                build_read_file_call(&message, ID++, filename, READ_EVERYTHING, 0, READ_MODE_TEXT);
+                printf("STATUS: sending read call, its payload_len is %d\n", message.header.payload_len);
+                nnfs_send(&context, &message);
+                message.header.is_last = 0;
+                while(message.header.is_last != 1){
+                    nnfs_receive(&context, &message);
+                    printf("STATUS: op_code received = %d\n", message.header.op_code);
+                    print_payload(message.payload, message.header.payload_len);
+                    if(message.header.op_code == STATUS_FAIL_GARBAGE_ARGS)
+                        printf("ERROR: file doesnt exist\n");
+                }
+                printf("\n\n");
+                break;
+            case OP_CODE_WRITE_FROM_LOCAL:
+                printf("Enter filename to write to:\n");
+                fgets(filename, BUFFER_LENGTH, stdin);
+                filename[strlen(filename) - 1] = 0;
+
+                printf("Enter text to write:\n");
+                fgets(buffer, BUFFER_LENGTH, stdin);
+                buffer[strlen(buffer) - 1] = 0;
+
+                build_write_file_call(&message, ID++, filename, buffer);
+                if(message.header.payload_len == 0){
+                    printf("ERROR: too much to write at one time\n");
+                    break;
+                }
+                nnfs_send(&context, &message);
+                nnfs_receive(&context, &message);
+                if(message.header.op_code == STATUS_SUCCESS){
+                    printf("SUCCESS: successfully written to file\n");
+                }
+                else{
+                    printf("ERROR: couldnt write to file, the reason is %d\n", message.header.op_code);
                 }
                 break;
             default:

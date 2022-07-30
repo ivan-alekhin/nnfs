@@ -80,13 +80,13 @@ void build_pong_reply(struct MSG *retval){
 
 void build_ls_call(struct MSG *message, uint32_t ID){
     destroy_msg(message);
-    inner_build_template_call(message, 0);
+    inner_build_template_call(message, ID);
     message->header.op_code = OP_CODE_LIST_DIRECTORY;
 }
 
-void build_chdir_call(struct MSG *message, uint32_t ID, const char * path){
+void build_chdir_call(struct MSG *message, uint32_t ID, const char *path){
     destroy_msg(message);
-    inner_build_template_call(message, 0);
+    inner_build_template_call(message, ID);
     message->header.op_code = OP_CODE_CHANGE_DIRECTORY;
     int length = message->header.payload_len = strlen(path);
     if(length == 0){
@@ -98,4 +98,38 @@ void build_chdir_call(struct MSG *message, uint32_t ID, const char * path){
         exit(1);
     }
     strncpy((char*)message->payload, (char *)path, length);
+}
+
+
+void build_read_file_call(struct MSG *message, uint32_t ID, const char *filename, uint32_t number_of_characters, uint32_t offset, uint32_t read_mode){
+    destroy_msg(message);
+    inner_build_template_call(message, 0);
+
+    message->header.op_code = OP_CODE_READ_FROM_REMOTE;
+
+    char * payl = calloc(1, NNFS_MSG_MAX_LENGTH + 1);
+    snprintf(payl, NNFS_MSG_MAX_LENGTH, READ_CALL_FORMAT, read_mode, offset, number_of_characters, filename);
+    message->header.payload_len = strlen(payl);
+    message->payload = calloc(1, message->header.payload_len);
+    strncpy((char*)message->payload, (char *)payl, message->header.payload_len);
+    free(payl);
+}
+
+void build_write_file_call(struct MSG *message, uint32_t ID, const char *filename, const char *to_write){
+    destroy_msg(message);
+    inner_build_template_call(message, 0);
+
+    int length = sizeof(WRITE_CALL_FORMAT) + strlen(to_write) + strlen(filename) - 4;
+
+    if(length > NNFS_MSG_MAX_LENGTH)
+        return;
+    
+    message->header.op_code = OP_CODE_WRITE_FROM_LOCAL;
+
+    char * payl = calloc(1, NNFS_MSG_MAX_LENGTH + 1);
+    snprintf(payl, NNFS_MSG_MAX_LENGTH, WRITE_CALL_FORMAT, filename, to_write);
+    message->header.payload_len = strlen(payl);
+    message->payload = calloc(1, message->header.payload_len);
+    strncpy((char*)message->payload, (char *)payl, message->header.payload_len);
+    free(payl);
 }

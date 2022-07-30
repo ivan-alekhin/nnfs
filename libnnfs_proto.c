@@ -74,7 +74,7 @@ void encode_header(const struct MSG *message, struct ENCODED_MESSAGE *encmes){
 }
 
 void encode(const struct MSG *message, struct ENCODED_MESSAGE *encmes){
-    assert(message->header.payload_len < NNFS_MSG_MAX_LENGTH);
+    assert(message->header.payload_len <= NNFS_MSG_MAX_LENGTH);
     if(encmes->length != 0)
         destroy_encmes(encmes);
 
@@ -94,7 +94,7 @@ void encode(const struct MSG *message, struct ENCODED_MESSAGE *encmes){
 }
 
 void decode_payload(const struct ENCODED_MESSAGE *encmes, struct MSG *message){
-    assert(message->header.payload_len < NNFS_MSG_MAX_LENGTH);
+    assert(message->header.payload_len <= NNFS_MSG_MAX_LENGTH);
     if(message->header.payload_len == 0u){
         message->payload = NULL;
         return;

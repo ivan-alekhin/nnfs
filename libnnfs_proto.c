@@ -61,7 +61,8 @@ void decode_header(const struct ENCODED_MESSAGE *encmes, struct MSG *message){
     message->header.payload_len = convert_XDR_to_uint32(encmes->mes + 3*BYTES_IN_UINT32);
     message->header.is_last = encmes->mes[4 * BYTES_IN_UINT32];
     message->header.number_in_sequence = encmes->mes[4 * BYTES_IN_UINT32 + 1];
-    printf("SUCCESS: header decoded\n");
+    if(ENABLE_LOGGING != 0)
+        printf("SUCCESS: header decoded\n");
 }
 
 void encode_header(const struct MSG *message, struct ENCODED_MESSAGE *encmes){
@@ -90,7 +91,8 @@ void encode(const struct MSG *message, struct ENCODED_MESSAGE *encmes){
     for(int i = 0; i < message->header.payload_len; i++, src++ ,dest++){
         *dest = *src;
     }
-    printf("SUCCESS: msg encoded\n"); 
+    if(ENABLE_LOGGING != 0)
+        printf("SUCCESS: msg encoded\n"); 
 }
 
 void decode_payload(const struct ENCODED_MESSAGE *encmes, struct MSG *message){
@@ -110,5 +112,6 @@ void decode_payload(const struct ENCODED_MESSAGE *encmes, struct MSG *message){
     for(int i = 0; i < message->header.payload_len; i++, dest++, src++){
         *dest = *src;
     }
-    printf("SUCCESS: payload decoded\n");
+    if(ENABLE_LOGGING != 0)
+        printf("SUCCESS: payload decoded\n");
 }

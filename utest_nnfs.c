@@ -50,12 +50,15 @@ void utest_primitive_matcher(){
 #define PAYLOAD_STRING "Hello world!"
 void utest_proto(){
     printf("----1)Encoding Message with no payload and then decoding it:----\n");
-    struct MSG message;
-    message.header.ID = 13u;
-    message.header.op_code = 14u;
-    message.header.payload_len = 0u;
-    message.header.type = 15u;
-    message.payload = NULL;
+    struct MSG message = {
+        .header = {
+            .ID = 13u,
+            .op_code = 14u,
+            .payload_len = 0u,
+            .type = 15u,
+        },
+        .payload = NULL
+    };
     printf("ID = %d\nop_code = %d\npayload_len = %d\ntype = %d\n", message.header.ID, message.header.op_code, message.header.payload_len, message.header.type);
     struct ENCODED_MESSAGE encmes;
     init_encmes(&encmes);

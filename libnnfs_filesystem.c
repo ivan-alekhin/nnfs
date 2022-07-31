@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 #include "libnnfs_filesystem.h"
+#include "nnfs_constants.h"
 
 //considered to be root of the filesystem
 char *hosting_directory = NULL;
@@ -38,8 +39,9 @@ int close_descriptor(struct dir_descriptor *dir){
 
 int set_hosting_directory(const char *path){
     free(hosting_directory);
-    hosting_directory = calloc(sizeof(char), strlen(path));
-    strncpy(hosting_directory, path, strlen(path));
+    hosting_directory = strdup(path);
+    // hosting_directory = calloc(sizeof(char), strlen(path));
+    // strncpy(hosting_directory, path, strlen(path));
     return DIRECTORY_SUCCESS;
 }
 
@@ -83,6 +85,14 @@ int slist_directory(struct dir_descriptor *descr, char *str, uint32_t str_size){
         //printf("\nSTATUS: currently \nspace_needed = %d\nenough_space_in_str = %d\ncurrent_fillament = %d\nfile_name = %s\n\n", space_needed, enough_space_in_str, current_fillament, descr->current_entity->d_name);
         if(strcmp(descr->current_entity->d_name, ".") != 0 && strcmp(descr->current_entity->d_name, "..") != 0){
             space_needed = LISTING_FORMAT_SIZE + strlen(descr->current_entity->d_name);
+        
+        //it doesnt calculate the actual size of the buffer that is needed for the whole listing of files and dirs
+        //it only tries to write every single listing entry in the buffer
+        //while its possible to calculate how much space is needed for the whole listing
+        //it requires reading everything at once
+        //and its solves the problem of segmentating the output to smaller pieces that can be sent
+        //in msg->payload, because we can give it NNFS_MSG_MAX_lENGTH size buffer
+        //and repeat untill its empty 
 
             if(space_needed + current_fillament < str_size){
                 if(descr->current_entity->d_type == DT_REG)
@@ -101,10 +111,8 @@ int slist_directory(struct dir_descriptor *descr, char *str, uint32_t str_size){
         
     }
     str[current_fillament] = '\0';
-    if(enough_space_in_str)
-        return DIRECTORY_SUCCESS;
-    else
-        return DIRECTORY_NOT_EVERYTHING_LISTED;
+    
+    return enough_space_in_str ? DIRECTORY_SUCCESS : DIRECTORY_NOT_EVERYTHING_LISTED;
 }
 
 //checks if its an absolute path
@@ -170,11 +178,14 @@ bool parentcall_preceeding(const char * path){
 
 //checks for safety in the path(to not escape hosting dir)
 bool is_safe_path(const char *path, const struct dir_descriptor* descr){
+
     //path cant start or end with /
     if(strchr(path, '/') == path || path[strlen(path) - 1] == '/')
         return false;
 
     //it's not allowed to reference /. in any path (can cause memory overflow)
+    if(strcmp(path, ".") == 0)
+        return false;
     if(strncmp(path, "./", sizeof("./") -1) == 0)
         return false;
     if(strstr(path, "/./") != NULL)
@@ -224,8 +235,12 @@ void build_whole_path(const struct dir_descriptor *descr, const char *path, char
 
         int parentcalls_number = count_parentcalls(path);
         int cur_dir_left_dir = count_dir_in_path(descr->curdir_path) - parentcalls_number;
-        printf("parent calls: %d\n", parentcalls_number);
-        printf("cur_dir = %d\n", cur_dir_left_dir);
+
+        if(ENABLE_LOGGING != 0){
+            printf("parent calls: %d\n", parentcalls_number);
+            printf("cur_dir = %d\n", cur_dir_left_dir);
+        }
+
         if(cur_dir_left_dir < 0)
             return;
 
@@ -268,15 +283,16 @@ int change_directory(struct dir_descriptor *descr, const char *dir){
     build_whole_path(descr, dir, &new_path);
     if(new_path == NULL)
         return DIRECTORY_PERMISSION_DENIED;
-    
-    printf("STATUS: new path equals = \"%s\"\n",new_path);
+    if(ENABLE_LOGGING != 0)
+        printf("STATUS: new path equals = \"%s\"\n",new_path);
     char *absolute_path = calloc(1, strlen(hosting_directory) + strlen(new_path) + 1);
     strcat(absolute_path, hosting_directory);
     strcat(absolute_path, "/");
     strcat(absolute_path, new_path);
 
     DIR *new_dir = opendir(absolute_path);
-    printf("STATUS: opening at \"%s\"\n", absolute_path);
+    if(ENABLE_LOGGING != 0)
+        printf("STATUS: opening at \"%s\"\n", absolute_path);
     free(absolute_path);
     if(new_dir == NULL){
         printf("ERROR: couldnt open directory\n");
@@ -284,7 +300,8 @@ int change_directory(struct dir_descriptor *descr, const char *dir){
         return DIRECTORY_FAILED_TO_OPEN;
     }
     else{
-        printf("SUCCESS: opened directory\n");
+        if(ENABLE_LOGGING != 0)
+            printf("SUCCESS: opened directory\n");
         closedir(descr->directory);
         descr->directory = new_dir;
         new_dir = NULL;

@@ -39,7 +39,8 @@ void match_IPaddr(const char *str, char **dest){
         *dest = calloc(1, IPmatch.rm_eo - IPmatch.rm_so + 1);
         //logger
         strncpy(*dest,str + IPmatch.rm_so, IPmatch.rm_eo - IPmatch.rm_so);
-        printf("SUCCESS: matched ip = %s\n", *dest);
+        if(ENABLE_LOGGING != 0)
+            printf("SUCCESS: matched ip = %s\n", *dest);
     }
     else if(status == REG_NOMATCH){
         printf("WARNING: regexec in match_IPaddr could find ip\n");
@@ -68,7 +69,8 @@ void match_PORTnumber(const char *str, char **dest){
             printf("ERROR: calloc returned NULL in match_PORTnumber\n");
         }
         strncpy(*dest, str + PORTmatch.rm_so + 1, PORTmatch.rm_eo - PORTmatch.rm_so - 1);
-        printf("SUCCESS: matched port = %s\n", *dest);
+        if(ENABLE_LOGGING != 0)
+            printf("SUCCESS: matched port = %s\n", *dest);
     }
     else if(status == REG_NOMATCH){
         printf("WARNING: regexec in match_PORTnumber couldnt find port\n");
@@ -110,7 +112,8 @@ int match_client_number(const char *str){
         strncpy(dest, str + NUMBERmatch.rm_so, NUMBERmatch.rm_eo - NUMBERmatch.rm_so);
         int value = atoi(dest);
         free(dest);
-        printf("SUCCESS: successfully matched number = %d\n", value);
+        if(ENABLE_LOGGING != 0)
+            printf("SUCCESS: successfully matched number = %d\n", value);
         return value;
     }
     else if(status == REG_NOMATCH){

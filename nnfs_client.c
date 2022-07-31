@@ -13,19 +13,9 @@ const char* menu_text = "MENU:write one whole command, p.e. connect 0.0.0.0:2400
 #define CURDIR_LENGTH 512u
 #define BUFFER_LENGTH 512u
 
-//zeroes out the string
-void zeromem(char * command, uint32_t length){
-    for(uint32_t i = 0; i < length; i++){
-        command[i] = '\0';
-    }
-}
 
-//prints payload(used to not copy payload out of the message, because it doesnt have a trailing '\0'
-//and printing it as a string will result in undefined behaviour[likely a segfault])
 void print_payload(const char * payload, const uint32_t payload_len){
-    for(uint32_t i =0; i < payload_len; i++){
-        printf("%c", payload[i]);
-    }
+    printf("%.*s", payload_len, payload);
 }
 
 //add proper debugging
@@ -36,8 +26,8 @@ int main(int argc, char *argv[]){
 
     char buffer[BUFFER_LENGTH + 1];
     char filename[BUFFER_LENGTH + 1];
-    zeromem(buffer, BUFFER_LENGTH + 1);
-    zeromem(filename, BUFFER_LENGTH + 1);
+    memset(buffer, 0, BUFFER_LENGTH + 1);
+    memset(filename, 0, BUFFER_LENGTH + 1);
 
     uint32_t ID = STARTING_ID;
     struct nnfs_context context;
@@ -61,6 +51,7 @@ int main(int argc, char *argv[]){
     //better commands now without the menu
     while(infinite_loop){
         printf("%s", menu_text);
+        memset(command, 0, strlen(command));
         fgets(command, COMMAND_MAX_LENGTH, stdin);
         command_op_code = type_of_command(command);
         char *ip = NULL, *port = NULL;
@@ -133,11 +124,12 @@ int main(int argc, char *argv[]){
                 build_ls_call(&message, ID++);
                 nnfs_send(&context, &message);
                 message.header.is_last = 0;
-                printf("STATUS: waiting to accept a listing\n");
+                printf("STATUS: CONTENTS OF THE DIRECTORY\n\n");
                 while(message.header.is_last != 1){
                     nnfs_receive(&context, &message);
                     print_payload(message.payload, message.header.payload_len);
                 }
+                printf("\n\n");
                 break;
 
             case OP_CODE_CHANGE_DIRECTORY:
@@ -163,9 +155,10 @@ int main(int argc, char *argv[]){
                 printf("STATUS: sending read call, its payload_len is %d\n", message.header.payload_len);
                 nnfs_send(&context, &message);
                 message.header.is_last = 0;
+                printf("CONTENTS OF A FILE:\n\n");
                 while(message.header.is_last != 1){
                     nnfs_receive(&context, &message);
-                    printf("STATUS: op_code received = %d\n", message.header.op_code);
+                    //printf("STATUS: op_code received = %d\n", message.header.op_code);
                     print_payload(message.payload, message.header.payload_len);
                     if(message.header.op_code == STATUS_FAIL_GARBAGE_ARGS)
                         printf("ERROR: file doesnt exist\n");

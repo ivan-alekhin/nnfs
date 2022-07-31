@@ -1,4 +1,5 @@
 #include "libnnfs_socket.h"
+#include "nnfs_constants.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -29,7 +30,8 @@ int nnfs_send(struct nnfs_context *client, struct MSG *message){
     //printf("%d bytes are to be sent\n", encmes.length);
     int bytes_sent = send(client->socket, encmes.mes, encmes.length, 0);
     destroy_encmes(&encmes);
-    printf("SUCCESS: message sent\n");
+    if(ENABLE_LOGGING != 0)
+        printf("SUCCESS: message sent\n");
     return bytes_sent;
 };
 
@@ -60,7 +62,8 @@ int nnfs_receive(struct nnfs_context *context, struct MSG *message){
     else{
         message->payload = NULL;
     }
-    printf("SUCCESS: message received\n");
+    if(ENABLE_LOGGING != 0)
+        printf("SUCCESS: message received\n");
     return bytes_rcvd;
 };
 
@@ -87,5 +90,6 @@ int nnfs_listen(struct nnfs_context *context, uint32_t max_clients){
 void nnfs_accept(struct nnfs_context *context, struct nnfs_context *client){
     assert(client != NULL);
     client->socket = accept(context->socket, NULL, NULL);
-    printf("SUCCESS: a client has made a TCP connection\n");
+    if(ENABLE_LOGGING != 0)
+        printf("SUCCESS: a client has made a TCP connection\n");
 }

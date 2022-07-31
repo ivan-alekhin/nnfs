@@ -17,16 +17,9 @@ const char* server_menu = "MENU:write one whole command, p.e. bind 0.0.0.0:24004
 #define COMMAND_MAX_LENGTH 64u
 #define MAX_NUMBER_OF_CLIENTS 16u
 
-void zeromem(char * command, uint32_t length){
-    for(uint32_t i = 0; i < length; i++){
-        command[i] = '\0';
-    }
-}
 
+//where do I find documentation on non-blocking sockets
 
-//TODO: rework the client and the server
-//1)add a quit sequence for both sides
-//3)if possible move logging to a different terminal(may introduce more descriptive logs then)
 
 void server_start(struct nnfs_context *server, uint16_t client_number);
 
@@ -49,7 +42,7 @@ int main(){
 
     while(infinite_loop){
         printf("%s", server_menu);
-        zeromem(command, strlen(command));
+        memset(command, 0, strlen(command));
         fgets(command, COMMAND_MAX_LENGTH, stdin);
         command_op_code = type_of_command(command);
         switch(command_op_code){
@@ -92,7 +85,7 @@ int main(){
             
             case SERVER_SET_DIRECTORY:
                 printf("Write a path:\n");
-                zeromem(command, strlen(command));
+                memset(command, 0, strlen(command));
                 fgets(command, COMMAND_MAX_LENGTH, stdin);
                 command[strlen(command) -1] = 0;
                 if(set_hosting_directory(command) == DIRECTORY_SUCCESS){
@@ -134,6 +127,7 @@ pthread_mutex_t queue_mutex;
 struct queue_node *head;
 //only one thread changes this variable and once, therefore no protection is needed
 bool shutting_down = false;
+bool continue_serving_clients = true;
 
 pthread_mutex_t filesystem_mutex;
 
@@ -142,10 +136,10 @@ pthread_mutex_t filesystem_mutex;
 void respond_to_read_file(struct dir_descriptor *descr, struct nnfs_context *client, struct MSG *message, int thread_number){
     struct read_info rinfo;
     rinfo.file_path = NULL;
-    printf("STATUS: making reading response\n");
+    printf("RESPONSE: making reading response\n");
     if(message->header.payload_len < NNFS_MSG_MAX_LENGTH && message->header.payload_len != 0){
         get_read_info_from_call(message->payload, &rinfo);
-        printf("STATUS: the file contains name \"%s\"\n", rinfo.file_path);
+
         if(rinfo.read_mode != READ_MODE_TEXT){
             printf("ERROR: client tried reading in binary.\n");
             build_template_reply(message, message->header.ID, STATUS_FAIL_GARBAGE_ARGS,
@@ -154,7 +148,7 @@ void respond_to_read_file(struct dir_descriptor *descr, struct nnfs_context *cli
             free(rinfo.file_path);
             return;
         }
-        printf("STATUS: client is reading file \"%s\"\n", rinfo.file_path);
+        printf("STATUS: client is reading the file \"%s\"\n", rinfo.file_path);
         int offset = rinfo.offset;
         int sequence_number = 0;
         bool continue_reading = true;
@@ -162,13 +156,16 @@ void respond_to_read_file(struct dir_descriptor *descr, struct nnfs_context *cli
             printf("STATUS: starting reading\n");
             build_success_reply(message, message->header.ID);
             if(rinfo.number_of_characters > NNFS_MSG_MAX_LENGTH || rinfo.number_of_characters == 0){
-                printf("STATUS: entering if\n");
+                if(ENABLE_LOGGING != 0)
+                    printf("STATUS: entering if\n");
                 rinfo.number_of_characters-= NNFS_MSG_MAX_LENGTH;
                 message->header.payload_len = NNFS_MSG_MAX_LENGTH;
                 message->header.number_in_sequence = sequence_number++;
                 message->payload = calloc(1, message->header.payload_len);
-
+                //only this part actually opens the file so should be protected
+                pthread_mutex_lock(&filesystem_mutex);
                 offset = read_from_file(descr, rinfo.file_path, message->payload, message->header.payload_len, offset);
+                pthread_mutex_unlock(&filesystem_mutex);
                 if(offset > 0)
                     message->header.is_last = 0;
                 if(offset == 0)
@@ -178,26 +175,34 @@ void respond_to_read_file(struct dir_descriptor *descr, struct nnfs_context *cli
                     build_template_reply(message, message->header.ID, STATUS_FAIL_GARBAGE_ARGS, 0, NULL, 1, sequence_number++);
                     continue_reading = false;
                 }
-                printf("STATUS: sending a string = \"%s\"\n", message->payload);
+                if(ENABLE_LOGGING != 0)
+                    printf("STATUS: sending a string = \"%s\"\n", message->payload);
                 nnfs_send(client, message);
             }
             else{
-                printf("STATUS: entering else\n");
+                if(ENABLE_LOGGING != 0)
+                    printf("STATUS: entering else\n");
                 message->header.is_last = 1;
                 message->header.payload_len = rinfo.number_of_characters;
                 message->payload = calloc(1, message->header.payload_len);
+                //only this part actually opens the file so should be protected
+                pthread_mutex_lock(&filesystem_mutex);
                 offset = read_from_file(descr, rinfo.file_path, message->payload, message->header.payload_len, offset);
+                pthread_mutex_unlock(&filesystem_mutex);
+
                 message->header.number_in_sequence = sequence_number++;
                 if(offset < 0){
                     printf("ERROR:couldnt read from file \"%s\"\n", rinfo.file_path);
                     build_template_reply(message, message->header.ID, STATUS_FAIL_GARBAGE_ARGS, 0, NULL, 1, sequence_number++);
                 }
-                printf("STATUS: sending a string = \"%s\"", message->payload);
+                if(ENABLE_LOGGING != 0)
+                    printf("STATUS: sending a string = \"%s\"", message->payload);
                 nnfs_send(client, message);
                 continue_reading = false;
             }
         }
         free(rinfo.file_path);
+        printf("SUCCESS: finished reading\n");
     }
     else{
         printf("ERROR: client sent unsafe message payload length. It is %d\n", message->header.payload_len);
@@ -211,12 +216,17 @@ void respond_to_write_to_file(struct dir_descriptor *descr, struct nnfs_context 
     struct write_info winfo;
     winfo.buffer = NULL;
     winfo.file_path = NULL;
-    printf("STATUS: making write response\n");
+    printf("RESPONSE: making a write response\n");
     if(message->header.payload_len < NNFS_MSG_MAX_LENGTH && message->header.payload_len != 0){
         get_write_info_from_call(message->payload, message->header.payload_len, &winfo);
         int result = DIRECTORY_SUCCESS;
-        if(winfo.buffer != NULL)
+        if(winfo.buffer != NULL){
+            //only this part actually opens file so should be protected
+            pthread_mutex_lock(&filesystem_mutex);
             result = write_to_file(descr, winfo.file_path, winfo.buffer);
+            pthread_mutex_unlock(&filesystem_mutex);
+
+        }
         if(result != DIRECTORY_SUCCESS){
             printf("ERROR:couldnt write to file \"%s\"\n", winfo.file_path);
             build_template_reply(message, message->header.ID, STATUS_FAIL_GARBAGE_ARGS, 0, NULL, 1, 0);
@@ -322,12 +332,14 @@ void workload(struct nnfs_context *client, int thread_number){
                 break;
 
             case OP_CODE_READ_FROM_REMOTE:
-                printf("STATUS: calling read respond function\n");
+                if(ENABLE_LOGGING != 0)
+                    printf("STATUS: calling read respond function\n");
                 respond_to_read_file(&descr, client, &message,thread_number);
                 break;
 
             case OP_CODE_WRITE_FROM_LOCAL:
-                printf("STATUS: calling write respond function\n");
+                if(ENABLE_LOGGING != 0)
+                    printf("STATUS: calling write respond function\n");
                 respond_to_write_to_file(&descr, client, &message, thread_number);
                 break;
 
@@ -351,6 +363,8 @@ void* acquiring_job(){
         bool has_job = false;
         while(!has_job){
             sem_wait(&job_status);
+            if(shutting_down)
+                break;
             pthread_mutex_lock(&queue_mutex);
             printf("STATUS: Thread %d got a job\n", thread_number);               
             queue_pop(&head, &client);
@@ -389,7 +403,7 @@ void server_start(struct nnfs_context *server, uint16_t client_number){
             printf("ERROR: couldnt create thread\n");
             exit(3);
         }
-        printf("STATUS: created successfully\n");
+        printf("SUCCESS: created successfully\n");
     }
     nnfs_listen(server, client_number);
     printf("STATUS: started listening\n\n");
@@ -404,8 +418,10 @@ void server_start(struct nnfs_context *server, uint16_t client_number){
         sem_post(&job_status);
     }
     //unreachable code right now
+
     sem_destroy(&job_status);
     pthread_mutex_destroy(&queue_mutex);
     pthread_mutex_destroy(&filesystem_mutex);
     nnfs_close(server);
 }
+

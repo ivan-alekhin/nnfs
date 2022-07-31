@@ -54,3 +54,7 @@
 
 //read everything
 #define READ_EVERYTHING 0u
+
+//enables logging if it is not set to 0
+//only removes STATUS and SUCCESS messages from outside the files that are the server and the client
+#define ENABLE_LOGGING 0u

@@ -9,6 +9,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <errno.h>
 
 void nnfs_init_context(struct nnfs_context *context){
     context->socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -87,9 +88,13 @@ int nnfs_listen(struct nnfs_context *context, uint32_t max_clients){
     return listen(context->socket, max_clients);
 }
 
-void nnfs_accept(struct nnfs_context *context, struct nnfs_context *client){
+int nnfs_accept(struct nnfs_context *context, struct nnfs_context *client){
     assert(client != NULL);
     client->socket = accept(context->socket, NULL, NULL);
+    if (client->socket == -1) {
+        return -errno;
+    }
     if(ENABLE_LOGGING != 0)
         printf("SUCCESS: a client has made a TCP connection\n");
+    return 0;
 }

@@ -1,5 +1,5 @@
 CC=gcc
-FLAGS=-c
+FLAGS=-c --std=gnu99 -g
 
 all: client server
 

@@ -2,7 +2,13 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <semaphore.h>
-#include <stdatomic.h>
+#include <signal.h>
+#include <errno.h>
+/*
+ * TODO: Commented out atomic because because is not supported by gcc-4.8.
+ * We will need  to re-enable it or use sync functions.
+ */
+/*#include <stdatomic.h>*/
 #include <string.h>
 
 #include "libnnfs_socket.h"
@@ -108,8 +114,12 @@ int main(){
                 }
                 break;
 
+	    case OP_CODE_CLOSE_CONNECTION:
+		printf("Leaving\n");
+		infinite_loop = false;
+		break;
             default:
-                printf("ERROR: invalid user command\n");
+                printf("ERROR: invalid user command. Type 'quit' to leave.\n");
                 break;
         }    
     }
@@ -119,7 +129,8 @@ int main(){
 //will put it into a different file later
 
 //counting threads for debugging
-atomic_char16_t counter = 0;
+/*atomic_char16_t */
+uint64_t counter = 0;
 
 
 sem_t job_status;
@@ -375,17 +386,49 @@ void* acquiring_job(){
     }
 }
 
+static volatile sig_atomic_t last_signal;
+
+static void nnfs_sa_handler(int signum)
+{
+	(void)signum;
+	last_signal = signum;
+}
+
+static void nnfs_sa_handler_set(void)
+{
+	struct sigaction act;
+	int rc;
+	static int signals[] = {
+		SIGTERM, SIGINT, SIGUSR1,
+	};
+
+	last_signal = 0;
+	sigemptyset(&act.sa_mask);
+	act.sa_flags = 0;
+	act.sa_handler = nnfs_sa_handler;
+
+	for (int i = 0; i < (sizeof(signals) / sizeof(signals[0])); ++i) {
+		rc = sigaction(signals[i], &act, NULL);
+		if (rc != 0) {
+			fprintf(stderr, "Failed to set up signal handler.\n");
+			abort();
+		}
+	}
+}
+
 //right now there are no race conditions because every thread operates on its own client, so they have their own non-intersecting contexts
 //every variable is different for every thread
 //will be changed later after adding functionality that requires mutex
 void server_start(struct nnfs_context *server, uint16_t client_number){
-
+    int rc;
     bool working = true;
     uint32_t number_of_threads = client_number;
     pthread_t *threads = calloc(sizeof(pthread_t), client_number);
     if(threads == NULL){
         printf("ERROR: calloc in server_start returned NULL\n");
     }
+
+    nnfs_sa_handler_set();
 
     counter = 0u;
     init_queue(&head);
@@ -409,7 +452,20 @@ void server_start(struct nnfs_context *server, uint16_t client_number){
     printf("STATUS: started listening\n\n");
     //no need to join them because it will run until its stopped from outside
     while(!shutting_down){
-        nnfs_accept(server, &client_buffer);
+        rc = nnfs_accept(server, &client_buffer);
+        if (rc == -EINTR) {
+	    if (last_signal == SIGINT) {
+                printf("STATUS: non-graceful shutdown\n");
+		abort();
+	    }
+            if (last_signal == SIGUSR1) {
+                printf("STATUS: graceful shutdown\n");
+		shutting_down = true;
+		break;
+            }
+        }
+
+
         printf("STATUS: client accepted\n");
         pthread_mutex_lock(&queue_mutex);
         queue_push(&head, &client_buffer);

@@ -19,7 +19,7 @@ int nnfs_bind(struct nnfs_context *, const char *ip, const char *port);
 int nnfs_listen(struct nnfs_context *, uint32_t max_clients);
 
 //accepts connection returning client information
-void nnfs_accept(struct nnfs_context *server, struct nnfs_context *client);
+int nnfs_accept(struct nnfs_context *server, struct nnfs_context *client);
 
 //send a message to a remote server 
 //returns how many bytes are sent
